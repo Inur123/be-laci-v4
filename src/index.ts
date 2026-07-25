@@ -1,0 +1,81 @@
+import Fastify from "fastify";
+import cookie from "@fastify/cookie";
+import sensible from "@fastify/sensible";
+
+// Standard Fastify Plugins
+import envPlugin from "./plugins/env";
+import corsPlugin from "./plugins/cors";
+import prismaPlugin from "./plugins/prisma";
+import authPlugin from "./plugins/auth";
+
+// Services (Plugins)
+import encryptionPlugin from "./services/encryption.service";
+
+// Routes Plugins
+import authRoutes from "./routes/auth";
+import meRoutes from "./routes/me";
+import userManagementRoutes from "./routes/user-management";
+
+async function buildServer() {
+  const fastify = Fastify({
+    logger:
+      process.env.NODE_ENV === "development"
+        ? {
+            transport: {
+              target: "pino-pretty",
+              options: {
+                translateTime: "HH:MM:ss Z",
+                ignore: "pid,hostname",
+              },
+            },
+          }
+        : true,
+  });
+
+  // 1. Register Environment Plugin First (@fastify/env)
+  await fastify.register(envPlugin);
+
+  // 2. Register Fastify Core Plugins & Infrastructure
+  await fastify.register(sensible);
+  await fastify.register(cookie);
+  await fastify.register(corsPlugin);
+
+  // 3. Register Database, Services & Auth Plugins
+  await fastify.register(prismaPlugin);
+  await fastify.register(encryptionPlugin);
+  await fastify.register(authPlugin);
+
+  // 4. Register Route Plugins
+  await fastify.register(authRoutes);
+  await fastify.register(meRoutes, { prefix: "/api" });
+  await fastify.register(userManagementRoutes, { prefix: "/api" });
+
+  // 5. Health Check Endpoint
+  fastify.get("/health", async () => {
+    return {
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      service: "be-laci-v4",
+    };
+  });
+
+  return fastify;
+}
+
+async function start() {
+  try {
+    const server = await buildServer();
+    await server.listen({
+      port: server.config.PORT,
+      host: server.config.HOST,
+    });
+    console.log(
+      `🚀 Fastify Server running on http://${server.config.HOST}:${server.config.PORT}`
+    );
+  } catch (err) {
+    console.error("❌ Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+start();
