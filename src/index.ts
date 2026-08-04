@@ -1,12 +1,14 @@
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import sensible from "@fastify/sensible";
+import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 
 // Standard Fastify Plugins
 import envPlugin from "./plugins/env";
 import corsPlugin from "./plugins/cors";
 import prismaPlugin from "./plugins/prisma";
 import authPlugin from "./plugins/auth";
+import swaggerPlugin from "./plugins/swagger";
 
 // Services (Plugins)
 import encryptionPlugin from "./services/encryption.service";
@@ -32,6 +34,10 @@ async function buildServer() {
         : true,
   });
 
+  // Set Zod compiler for validation and serialization
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+
   // 1. Register Environment Plugin First (@fastify/env)
   await fastify.register(envPlugin);
 
@@ -44,6 +50,7 @@ async function buildServer() {
   await fastify.register(prismaPlugin);
   await fastify.register(encryptionPlugin);
   await fastify.register(authPlugin);
+  await fastify.register(swaggerPlugin);
 
   // 4. Register Route Plugins
   await fastify.register(authRoutes);
