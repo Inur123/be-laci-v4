@@ -30,6 +30,51 @@ export default async function meRoutes(fastify: FastifyInstance) {
   );
 
   // ============================================
+  // GET /me/stats — Ambil statistik Data Saya
+  // ============================================
+  fastify.get(
+    "/me/stats",
+    {
+      schema: { tags: ["Profil Akun Saya"] },
+      preHandler: [requireAuth],
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = request.user!;
+      const id = user.id;
+      
+      const userWithPeriode = await fastify.prisma.user.findUnique({
+        where: { id },
+        include: { periodes: { where: { isActive: true } } },
+      });
+      
+      const activePeriode = userWithPeriode?.periodes && userWithPeriode.periodes.length > 0 ? userWithPeriode.periodes[0] : null;
+      const periodeAktifId = activePeriode ? activePeriode.id : user.periodeAktifId;
+
+      // Activity Stats
+      const totalArsipSurat = periodeAktifId ? await fastify.prisma.arsipSurat.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
+      const totalPengajuan = periodeAktifId ? await fastify.prisma.pengajuanBerkas.count({ where: { userId: id, periodeIdPac: periodeAktifId } }) : 0;
+      const totalAnggota = periodeAktifId ? await fastify.prisma.anggota.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
+      const totalBerkasPimpinan = periodeAktifId ? await fastify.prisma.berkasPimpinan.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
+      const totalLogActivities = await fastify.prisma.logActivity.count({ where: { userId: id } });
+      const totalPeriode = await fastify.prisma.periode.count({ where: { userId: id } });
+
+      return reply.send({
+        success: true,
+        data: {
+          statsAktivitas: {
+            arsipSurat: totalArsipSurat,
+            pengajuanPac: totalPengajuan,
+            dataAnggota: totalAnggota,
+            berkasPimpinan: totalBerkasPimpinan,
+            riwayatLog: totalLogActivities,
+            periode: totalPeriode,
+          },
+        },
+      });
+    }
+  );
+
+  // ============================================
   // PUT /me/profile — Update nama pimpinan
   // ============================================
   fastify.put(

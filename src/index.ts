@@ -20,6 +20,7 @@ import userManagementRoutes from "./routes/user-management";
 import emailLogRoutes from "./routes/email-log";
 import periodeRoutes from "./routes/periode";
 import activityRoutes from "./routes/activity";
+import dashboardRoutes from "./routes/dashboard";
 
 async function buildServer() {
   const fastify = Fastify({
@@ -62,6 +63,7 @@ async function buildServer() {
   await fastify.register(emailLogRoutes, { prefix: "/api" });
   await fastify.register(periodeRoutes, { prefix: "/api" });
   await fastify.register(activityRoutes);
+  await fastify.register(dashboardRoutes, { prefix: "/api" });
 
   // 5. Health Check Endpoint
   fastify.get("/health", { schema: { tags: ["Sistem"] } }, async () => {

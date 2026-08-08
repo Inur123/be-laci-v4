@@ -13,6 +13,7 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const users = await fastify.prisma.user.findMany({
+        where: { role: Role.SEKRETARIS_PAC },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -20,6 +21,7 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
           email: true,
           role: true,
           isActive: true,
+          emailVerified: true,
           periodeAktifId: true,
           image: true,
           createdAt: true,
@@ -135,9 +137,9 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
       preHandler: [requireAuth, requireRole(Role.SEKRETARIS_CABANG)],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const totalUser = await fastify.prisma.user.count();
-      const akunAktif = await fastify.prisma.user.count({ where: { isActive: true } });
-      const akunNonaktif = await fastify.prisma.user.count({ where: { isActive: false } });
+      const totalUser = await fastify.prisma.user.count({ where: { role: Role.SEKRETARIS_PAC } });
+      const akunAktif = await fastify.prisma.user.count({ where: { role: Role.SEKRETARIS_PAC, isActive: true } });
+      const akunNonaktif = await fastify.prisma.user.count({ where: { role: Role.SEKRETARIS_PAC, isActive: false } });
 
       return reply.send({
         success: true,
@@ -173,7 +175,9 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ success: false, message: "User tidak ditemukan" });
       }
 
-      const periodeAktifId = user.periodeAktifId;
+      const activePeriode = user.periodes && user.periodes.length > 0 ? user.periodes[0] : null;
+      const periodeAktifId = activePeriode ? activePeriode.id : user.periodeAktifId;
+      const periodeAktifName = activePeriode ? (activePeriode as any).nama : null;
 
       // Activity Stats
       const totalArsipSurat = periodeAktifId ? await fastify.prisma.arsipSurat.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
@@ -210,6 +214,7 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
             createdAt: user.createdAt,
             lastLogoutAt: user.lastLogoutAt,
             periodeAktifId: user.periodeAktifId,
+            periodeAktifName: periodeAktifName,
           },
           statsAktivitas: {
             arsipSurat: totalArsipSurat,
