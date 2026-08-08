@@ -8,7 +8,8 @@
     "start": "bun src/index.ts",
     "build": "bun x tsc --noEmit",
     "db:seed": "bun prisma/seed.ts",
-    "db:push": "bun x prisma db push --config prisma/prisma.config.ts"
+    "db:push": "bun x prisma db push --config prisma/prisma.config.ts",
+    "db:studio": "bun x prisma studio --config prisma/prisma.config.ts"
   },
   "prisma": {
     "seed": "bun prisma/seed.ts"

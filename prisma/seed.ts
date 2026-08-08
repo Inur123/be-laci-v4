@@ -58,7 +58,38 @@ async function main() {
     console.log("   ✓ Admin sudah ada, melewati pembuatan user.");
   }
 
-  // 2. Seed Allowed Origins
+  // 2. Seed PAC
+  const pacEmail = "pac@gmail.com";
+  const pacId = "ipnuippnu-admin-pac";
+
+  const existingPac = await prisma.user.findUnique({ where: { email: pacEmail } });
+  
+  if (!existingPac) {
+    console.log("   ➤ PAC belum ada, mendaftarkan via Better Auth API...");
+    const signUpResponse = await (auth.api as any).signUpEmail({
+      body: { email: pacEmail, password, name: "Sekretaris PAC" },
+      headers: new Headers(),
+    });
+
+    if (signUpResponse?.user) {
+      const newUserId = signUpResponse.user.id;
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: newUserId },
+          data: { id: pacId, role: "SEKRETARIS_PAC", isActive: true, emailVerified: true },
+        }),
+        prisma.account.updateMany({
+          where: { userId: newUserId },
+          data: { userId: pacId },
+        }),
+      ]);
+      console.log("   ✓ Admin PAC (Sekretaris PAC) berhasil dibuat.");
+    }
+  } else {
+    console.log("   ✓ Admin PAC sudah ada, melewati pembuatan user.");
+  }
+
+  // 3. Seed Allowed Origins
   const domains = [
     "localhost",
     "laci.pelajarnumagetan.or.id",

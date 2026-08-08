@@ -17,6 +17,9 @@ import encryptionPlugin from "./services/encryption.service";
 import authRoutes from "./routes/auth";
 import meRoutes from "./routes/me";
 import userManagementRoutes from "./routes/user-management";
+import emailLogRoutes from "./routes/email-log";
+import periodeRoutes from "./routes/periode";
+import activityRoutes from "./routes/activity";
 
 async function buildServer() {
   const fastify = Fastify({
@@ -56,9 +59,12 @@ async function buildServer() {
   await fastify.register(authRoutes);
   await fastify.register(meRoutes, { prefix: "/api" });
   await fastify.register(userManagementRoutes, { prefix: "/api" });
+  await fastify.register(emailLogRoutes, { prefix: "/api" });
+  await fastify.register(periodeRoutes, { prefix: "/api" });
+  await fastify.register(activityRoutes);
 
   // 5. Health Check Endpoint
-  fastify.get("/health", async () => {
+  fastify.get("/health", { schema: { tags: ["Sistem"] } }, async () => {
     return {
       status: "ok",
       timestamp: new Date().toISOString(),
