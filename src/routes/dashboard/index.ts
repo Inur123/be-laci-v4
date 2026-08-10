@@ -13,7 +13,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const totalAnggota = await fastify.prisma.anggota.count();
+        const totalAnggota = 0; // Data dipindah ke sistem baru
         const totalAdministrasi = await fastify.prisma.pengajuanBerkas.count();
 
         // PAC Aktif = Role PAC, isActive true, emailVerified true
@@ -35,11 +35,11 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
           where: { role: Role.SEKRETARIS_PAC },
           include: {
             _count: {
-              select: { anggota: true, arsipSurats: true },
+              select: { arsipSurats: true },
             },
           },
           orderBy: {
-            anggota: {
+            arsipSurats: {
               _count: 'desc'
             }
           },
@@ -48,7 +48,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
 
         const topPacs = topPacUsers.map((user: any) => ({
           name: user.name,
-          totalAnggota: user._count?.anggota || 0,
+          totalAnggota: 0, // Data dipindah ke sistem baru
           totalArsipSurat: user._count?.arsipSurats || 0,
         }));
 

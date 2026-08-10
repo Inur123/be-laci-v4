@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import sensible from "@fastify/sensible";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
+import { requireApiKey } from "./middleware/api-key.middleware";
 
 // Standard Fastify Plugins
 import envPlugin from "./plugins/env";
@@ -21,6 +22,7 @@ import emailLogRoutes from "./routes/email-log";
 import periodeRoutes from "./routes/periode";
 import activityRoutes from "./routes/activity";
 import dashboardRoutes from "./routes/dashboard";
+import wilayahRoutes from "./routes/wilayah";
 
 async function buildServer() {
   const fastify = Fastify({
@@ -41,6 +43,9 @@ async function buildServer() {
   // Set Zod compiler for validation and serialization
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
+
+  // 0. Register Global API Key Middleware
+  fastify.addHook('onRequest', requireApiKey);
 
   // 1. Register Environment Plugin First (@fastify/env)
   await fastify.register(envPlugin);
@@ -64,6 +69,7 @@ async function buildServer() {
   await fastify.register(periodeRoutes, { prefix: "/api" });
   await fastify.register(activityRoutes);
   await fastify.register(dashboardRoutes, { prefix: "/api" });
+  await fastify.register(wilayahRoutes, { prefix: "/api" });
 
   // 5. Health Check Endpoint
   fastify.get("/health", { schema: { tags: ["Sistem"] } }, async () => {

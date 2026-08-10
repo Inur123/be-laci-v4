@@ -39,7 +39,6 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
           updatedAt: true,
           _count: {
             select: {
-              anggota: true,
               arsipSurats: true,
               agendaKegiatan: true,
               presensi: true,

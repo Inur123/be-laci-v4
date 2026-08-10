@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -30,7 +29,6 @@ model User {
   berkasSPs        BerkasSP[]
   pengajuanBerkass PengajuanBerkas[]
   periodes         Periode[]
-  anggota          Anggota[]
   agendaKegiatan   AgendaKegiatan[]
   presensi         Presensi[]
   logActivities    LogActivity[]
@@ -38,6 +36,10 @@ model User {
   // Better Auth relations
   sessions Session[]
   accounts Account[]
+
+  // Wilayah relations
+  ranting  Ranting[]
+  pk       PK[]
 
   @@index([role, isActive, emailVerified])
   @@index([createdAt])
@@ -55,7 +57,6 @@ model Periode {
   berkasSPs         BerkasSP[]
   pengajuanToPAC    PengajuanBerkas[] @relation("PengajuanToPAC")
   pengajuanToCabang PengajuanBerkas[] @relation("PengajuanToCabang")
-  anggota           Anggota[]
   agendaKegiatan    AgendaKegiatan[]
   presensi          Presensi[]
   logActivities     LogActivity[]
@@ -217,66 +218,32 @@ enum PenerimaSurat {
   CBP_KPP
 }
 
-model Anggota {
-  id                     String       @id @default(cuid())
-  userId                 String
-  periodeId              String
-  nik                    String?
-  nia                    String?
-  email                  String?
-  foto                   String?
-  namaLengkap            String
-  tempatLahir            String?
-  tanggalLahir           DateTime?
-  jenisKelamin           JenisKelamin
-  alamatLengkap          String?
-  noHp                   String?
-  hobi                   String?
-  jabatan                String?
-  noRfid                 String?
-  pekerjaan              String?
-  jenjangPendidikan      String?
-  namaInstansiPendidikan String?
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
-  periode                Periode      @relation(fields: [periodeId], references: [id], onDelete: Cascade)
-  user                   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  perkaderans            Perkaderan[]
-  pendidikans            Pendidikan[]
 
-  @@index([userId, periodeId])
+
+
+
+model Ranting {
+  id        String    @id @default(cuid())
+  userId    String
+  nama      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
 }
 
-model Pendidikan {
-  id          String   @id @default(cuid())
-  anggotaId   String
-  jenjang     String
-  namaSekolah String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model PK {
+  id        String    @id @default(cuid())
+  userId    String
+  nama      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  anggota Anggota @relation(fields: [anggotaId], references: [id], onDelete: Cascade)
-
-  @@index([anggotaId])
-}
-
-model Perkaderan {
-  id             String   @id @default(cuid())
-  anggotaId      String
-  namaPerkaderan String
-  tanggal        DateTime
-  tempat         String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  anggota Anggota @relation(fields: [anggotaId], references: [id], onDelete: Cascade)
-
-  @@index([anggotaId])
-}
-
-enum JenisKelamin {
-  LAKI_LAKI
-  PEREMPUAN
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
 }
 
 model AgendaKegiatan {
@@ -356,6 +323,8 @@ enum LogModule {
   USER
   AUTH
   PRESENSI
+  RANTING
+  PK
 }
 
 // ============================================

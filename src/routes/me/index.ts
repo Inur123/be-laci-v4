@@ -53,7 +53,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
       // Activity Stats
       const totalArsipSurat = periodeAktifId ? await fastify.prisma.arsipSurat.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
       const totalPengajuan = periodeAktifId ? await fastify.prisma.pengajuanBerkas.count({ where: { userId: id, periodeIdPac: periodeAktifId } }) : 0;
-      const totalAnggota = periodeAktifId ? await fastify.prisma.anggota.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
+      const totalAnggota = 0; // Data anggota sudah dipindah ke sistem baru
       const totalBerkasPimpinan = periodeAktifId ? await fastify.prisma.berkasPimpinan.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
       const totalLogActivities = await fastify.prisma.logActivity.count({ where: { userId: id } });
       const totalPeriode = await fastify.prisma.periode.count({ where: { userId: id } });

@@ -182,23 +182,15 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
       // Activity Stats
       const totalArsipSurat = periodeAktifId ? await fastify.prisma.arsipSurat.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
       const totalPengajuan = periodeAktifId ? await fastify.prisma.pengajuanBerkas.count({ where: { userId: id, periodeIdPac: periodeAktifId } }) : 0;
-      const totalAnggota = periodeAktifId ? await fastify.prisma.anggota.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
+      const totalAnggota = 0; // Data dipindah ke sistem baru
       const totalBerkasPimpinan = periodeAktifId ? await fastify.prisma.berkasPimpinan.count({ where: { userId: id, periodeId: periodeAktifId } }) : 0;
       const totalLogActivities = await fastify.prisma.logActivity.count({ where: { userId: id } });
 
-      // Pendidikan Stats
-      const pendidikanList = periodeAktifId ? await fastify.prisma.pendidikan.groupBy({
-        by: ['jenjang'],
-        where: { anggota: { userId: id, periodeId: periodeAktifId } },
-        _count: { jenjang: true }
-      }) : [];
+      // Pendidikan Stats (Data dipindah ke sistem baru)
+      const pendidikanList: any[] = [];
 
-      // Perkaderan Stats
-      const perkaderanList = periodeAktifId ? await fastify.prisma.perkaderan.groupBy({
-        by: ['namaPerkaderan'],
-        where: { anggota: { userId: id, periodeId: periodeAktifId } },
-        _count: { namaPerkaderan: true }
-      }) : [];
+      // Perkaderan Stats (Data dipindah ke sistem baru)
+      const perkaderanList: any[] = [];
 
       return reply.send({
         success: true,
