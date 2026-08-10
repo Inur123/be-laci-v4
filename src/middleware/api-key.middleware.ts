@@ -4,8 +4,8 @@ export async function requireApiKey(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  // Skip API key check for Swagger UI routes so documentation remains accessible
-  if (request.url.startsWith('/docs') || request.url.startsWith('/health')) {
+  // Skip API key check for Swagger UI routes so documentation remains accessible and OPTIONS requests for CORS
+  if (request.method === 'OPTIONS' || request.url.startsWith('/docs') || request.url.startsWith('/health')) {
     return;
   }
 

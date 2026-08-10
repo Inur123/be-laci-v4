@@ -18,18 +18,20 @@ const authPlugin = fp(
       bearer(),
       emailOTP({
         async sendVerificationOTP({ email, otp, type }) {
-          const transporter = nodemailer.createTransport({
-            host: fastify.config.SMTP_HOST,
-            port: fastify.config.SMTP_PORT,
-            secure: fastify.config.SMTP_PORT === 465,
-            auth: {
-              user: fastify.config.SMTP_USER,
-              pass: fastify.config.SMTP_PASS,
-            },
-          });
+          // Fire-and-forget background task
+          setTimeout(async () => {
+            const transporter = nodemailer.createTransport({
+              host: fastify.config.SMTP_HOST,
+              port: fastify.config.SMTP_PORT,
+              secure: fastify.config.SMTP_PORT === 465,
+              auth: {
+                user: fastify.config.SMTP_USER,
+                pass: fastify.config.SMTP_PASS,
+              },
+            });
 
-          try {
-            await transporter.sendMail({
+            try {
+              await transporter.sendMail({
               from: `"Laci IPNU IPPNU" <${fastify.config.SMTP_USER}>`,
               to: email,
               subject: `Kode Verifikasi Laci Digital`,
@@ -61,8 +63,9 @@ const authPlugin = fp(
                 metadata: JSON.stringify({ betterAuthType: type }),
               },
             });
-            console.error('Failed to send verification email:', error);
-          }
+              console.error('Failed to send verification email:', error);
+            }
+          }, 0);
         },
         sendVerificationOnSignUp: true,
       }),
@@ -74,6 +77,44 @@ const authPlugin = fp(
         sentinel({ apiKey: fastify.config.BETTER_AUTH_API_KEY })
       );
     }
+
+    // Intercept auth requests for explicit blocks
+    fastify.addHook('preHandler', async (request, reply) => {
+      if (request.method === 'POST') {
+        if (request.url.includes('/api/auth/sign-up/email')) {
+          const body = request.body as any;
+          if (body?.email) {
+            const user = await fastify.prisma.user.findUnique({
+              where: { email: body.email.toLowerCase() }
+            });
+            
+            if (user && user.emailVerified) {
+              return reply.status(409).send({
+                success: false,
+                error: { message: "User already exists", status: 409 }
+              });
+            }
+          }
+        }
+        
+        if (request.url.includes('/api/auth/sign-in/email')) {
+          const body = request.body as any;
+          if (body?.email) {
+            const user = await fastify.prisma.user.findUnique({
+              where: { email: body.email.toLowerCase() }
+            });
+            
+            // Block if user exists but is not active
+            if (user && user.isActive === false) {
+              return reply.status(423).send({
+                message: "ACCOUNT_INACTIVE",
+                code: "ACCOUNT_INACTIVE"
+              });
+            }
+          }
+        }
+      }
+    });
 
     const auth = betterAuth({
       secret: fastify.config.BETTER_AUTH_SECRET,
@@ -87,6 +128,22 @@ const authPlugin = fp(
 
       experimental: {
         joins: true,
+      },
+
+      rateLimit: {
+        enabled: true,
+        window: 60, // 60 detik
+        max: 100, // Maksimal 100 request per IP dalam 1 menit secara global
+        customRules: {
+          "/sign-in/email": {
+            window: 60,
+            max: 5, // Maksimal 5 percobaan login per menit
+          },
+          "/sign-up/email": {
+            window: 60,
+            max: 3, // Maksimal 3 percobaan register per menit
+          },
+        },
       },
 
       session: {
@@ -129,6 +186,7 @@ const authPlugin = fp(
       },
 
       emailVerification: {
+        sendOnSignUp: false, // Disable sending magic link on signup, use OTP instead
         sendVerificationEmail: async ({ user, url, token }, request) => {
           // This handles verification links for changeEmail.
           // Standard signup uses the emailOTP plugin instead, so this will only be triggered by changeEmail.
