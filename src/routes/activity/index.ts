@@ -19,6 +19,9 @@ export default async function activityRoutes(fastify: FastifyInstance) {
           module: z.string().optional(),
           action: z.string().optional(),
           userId: z.string().optional(),
+          date: z.string().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
         }),
       },
     },
@@ -32,6 +35,9 @@ export default async function activityRoutes(fastify: FastifyInstance) {
         module: moduleFilter,
         action: actionFilter,
         userId: userIdFilter,
+        date: dateFilter,
+        startDate,
+        endDate,
       } = request.query as {
         type?: string;
         limit?: string;
@@ -40,6 +46,9 @@ export default async function activityRoutes(fastify: FastifyInstance) {
         module?: string;
         action?: string;
         userId?: string;
+        date?: string;
+        startDate?: string;
+        endDate?: string;
       };
 
       const take = parseInt(limit, 10) || 50;
@@ -68,11 +77,10 @@ export default async function activityRoutes(fastify: FastifyInstance) {
         });
       }
 
-      let whereClause: any = {
-        periodeId: periodeId,
-      };
+      let whereClause: any = {};
 
       if (type === "personal") {
+        whereClause.periodeId = periodeId;
         whereClause.userId = user.id;
       }
 
@@ -107,9 +115,52 @@ export default async function activityRoutes(fastify: FastifyInstance) {
       }
 
       // Only filter by user if it's Global tab
-      if (type === "global" && userIdFilter && userIdFilter !== "Semua User") {
+      if (type === "global" && userIdFilter && userIdFilter !== "Semua PAC") {
         whereClause.userId = userIdFilter;
       }
+
+      if (startDate && endDate) {
+        whereClause.createdAt = {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        };
+      } else if (dateFilter && dateFilter !== "Semua Waktu") {
+        const now = new Date();
+        let queryStartDate: Date | undefined;
+
+        if (dateFilter === "Hari Ini") {
+          queryStartDate = new Date(now.setHours(0, 0, 0, 0));
+        } else if (dateFilter === "Kemarin") {
+          queryStartDate = new Date(now.setDate(now.getDate() - 1));
+          queryStartDate.setHours(0, 0, 0, 0);
+          whereClause.createdAt = {
+            gte: queryStartDate,
+            lt: new Date(new Date().setHours(0, 0, 0, 0)),
+          };
+        } else if (dateFilter === "7 Hari Terakhir") {
+          queryStartDate = new Date(now.setDate(now.getDate() - 7));
+        } else if (dateFilter === "30 Hari Terakhir") {
+          queryStartDate = new Date(now.setDate(now.getDate() - 30));
+        } else if (dateFilter === "Bulan Ini") {
+          queryStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        } else if (dateFilter === "Bulan Lalu") {
+          queryStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          whereClause.createdAt = {
+            gte: queryStartDate,
+            lt: new Date(now.getFullYear(), now.getMonth(), 1),
+          };
+        }
+
+        if (queryStartDate && !whereClause.createdAt) {
+          whereClause.createdAt = { gte: queryStartDate };
+        }
+      }
+
+      // Filter to only include active and verified users
+      whereClause.user = {
+        isActive: true,
+        emailVerified: true,
+      };
 
       console.log("ACTIVITY ROUTE: User ID =", user.id);
       console.log("ACTIVITY ROUTE: whereClause =", JSON.stringify(whereClause, null, 2));
@@ -171,6 +222,56 @@ export default async function activityRoutes(fastify: FastifyInstance) {
           limit: take,
           hasMore: skip + activities.length < total,
           stats,
+        },
+      });
+    }
+  );
+
+  fastify.get<{ Params: { id: string } }>(
+    "/api/activities/:id",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        tags: ["Riwayat Aktivitas"],
+        summary: "Get Activity Detail",
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const activity = await fastify.prisma.logActivity.findUnique({
+        where: { id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              image: true,
+            },
+          },
+          periode: {
+            select: {
+              nama: true,
+            },
+          },
+        },
+      });
+
+      if (!activity) {
+        return reply.status(404).send({
+          success: false,
+          message: "Activity log not found",
+        });
+      }
+
+      const d = new Date(activity.createdAt);
+      d.setUTCHours(d.getUTCHours() + 7);
+
+      return reply.send({
+        success: true,
+        data: {
+          ...activity,
+          createdAt: d.toISOString().replace('Z', ''),
         },
       });
     }

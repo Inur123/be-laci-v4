@@ -22,6 +22,8 @@ const corsPlugin = fp(
         "Cookie",
         "X-Requested-With",
         "x-app-key",
+        "x-user-location",
+        "x-client-device",
       ],
       exposedHeaders: ["Set-Cookie"],
       maxAge: 86400,

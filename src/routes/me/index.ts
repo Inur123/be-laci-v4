@@ -111,7 +111,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
       }
 
       if (periodeId) {
-        await fastify.prisma.logActivity.create({
+        fastify.prisma.logActivity.create({
           data: {
             userId: user.id,
             periodeId: periodeId,
@@ -123,7 +123,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
             device: request.headers["x-client-device"] as string || (request.headers["user-agent"]?.includes("Mobile") || request.headers["user-agent"]?.includes("Dart") ? "Mobile" : "Web"),
             location: request.headers["x-user-location"] as string | undefined,
           }
-        });
+        }).catch(console.error);
       }
 
       return reply.send({
@@ -199,7 +199,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
         }
 
         if (periodeId) {
-          await fastify.prisma.logActivity.create({
+          fastify.prisma.logActivity.create({
             data: {
               userId: user.id,
               periodeId: periodeId,
@@ -211,7 +211,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
               device: request.headers["x-client-device"] as string || (request.headers["user-agent"]?.includes("Mobile") || request.headers["user-agent"]?.includes("Dart") ? "Mobile" : "Web"),
               location: request.headers["x-user-location"] as string | undefined,
             }
-          });
+          }).catch(console.error);
         }
 
         return reply.send({
@@ -315,7 +315,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
         }
 
         if (periodeId) {
-          await fastify.prisma.logActivity.create({
+          fastify.prisma.logActivity.create({
             data: {
               userId: user.id,
               periodeId: periodeId,
@@ -327,7 +327,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
               device: request.headers["x-client-device"] as string || (request.headers["user-agent"]?.includes("Mobile") || request.headers["user-agent"]?.includes("Dart") ? "Mobile" : "Web"),
               location: request.headers["x-user-location"] as string | undefined,
             }
-          });
+          }).catch(console.error);
         }
 
         return reply.send({

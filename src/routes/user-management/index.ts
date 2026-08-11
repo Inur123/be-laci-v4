@@ -3,6 +3,18 @@ import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/role.middleware";
 import { Role } from "@prisma/client";
 import bcryptjs from "bcryptjs";
+
+function getDeviceInfo(request: FastifyRequest) {
+  const customDevice = request.headers["x-client-device"] as string;
+  const userAgent = request.headers["user-agent"] as string;
+  const ipAddress = request.ip;
+  const location = request.headers["x-user-location"] as string | undefined;
+  
+  const device = customDevice || (userAgent?.includes("Mobile") || userAgent?.includes("Dart") ? "Mobile" : "Web");
+  
+  return { ipAddress, userAgent, device, location };
+}
+
 export default async function userManagementRoutes(fastify: FastifyInstance) {
   // GET /api/users — List all users (Hanya Sekretaris Cabang)
   fastify.get(
@@ -91,6 +103,25 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
         },
       });
 
+      const sessionUser = request.user as any;
+      if (sessionUser?.id) {
+        fastify.prisma.periode.findFirst({ where: { userId: sessionUser.id, isActive: true } }).then(activePeriode => {
+          if (activePeriode) {
+            const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
+            return fastify.prisma.logActivity.create({
+              data: {
+                userId: sessionUser.id,
+                periodeId: activePeriode.id,
+                action: "UPDATE",
+                module: "ANGGOTA",
+                description: `Mengubah status akun ${updatedUser.name} menjadi ${isActive ? "AKTIF" : "NONAKTIF"}`,
+                ipAddress, userAgent, device, location
+              }
+            });
+          }
+        }).catch(console.error);
+      }
+
       return reply.send({
         success: true,
         message: `Status akun ${updatedUser.name} berhasil diubah menjadi ${isActive ? "AKTIF" : "NONAKTIF"}`,
@@ -120,6 +151,25 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
           role: true,
         },
       });
+
+      const sessionUser = request.user as any;
+      if (sessionUser?.id) {
+        fastify.prisma.periode.findFirst({ where: { userId: sessionUser.id, isActive: true } }).then(activePeriode => {
+          if (activePeriode) {
+            const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
+            return fastify.prisma.logActivity.create({
+              data: {
+                userId: sessionUser.id,
+                periodeId: activePeriode.id,
+                action: "UPDATE",
+                module: "ANGGOTA",
+                description: `Mengubah role ${updatedUser.name} menjadi ${role}`,
+                ipAddress, userAgent, device, location
+              }
+            });
+          }
+        }).catch(console.error);
+      }
 
       return reply.send({
         success: true,
@@ -261,6 +311,25 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
         });
       }
 
+      const sessionUser = request.user as any;
+      if (sessionUser?.id) {
+        fastify.prisma.periode.findFirst({ where: { userId: sessionUser.id, isActive: true } }).then(activePeriode => {
+          if (activePeriode) {
+            const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
+            return fastify.prisma.logActivity.create({
+              data: {
+                userId: sessionUser.id,
+                periodeId: activePeriode.id,
+                action: "UPDATE",
+                module: "ANGGOTA",
+                description: `Mereset password akun ${user.name}`,
+                ipAddress, userAgent, device, location
+              }
+            });
+          }
+        }).catch(console.error);
+      }
+
       return reply.send({
         success: true,
         message: "Password berhasil di-reset menjadi 'password'",
@@ -284,6 +353,25 @@ export default async function userManagementRoutes(fastify: FastifyInstance) {
       }
 
       await fastify.prisma.user.delete({ where: { id } });
+
+      const sessionUser = request.user as any;
+      if (sessionUser?.id) {
+        fastify.prisma.periode.findFirst({ where: { userId: sessionUser.id, isActive: true } }).then(activePeriode => {
+          if (activePeriode) {
+            const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
+            return fastify.prisma.logActivity.create({
+              data: {
+                userId: sessionUser.id,
+                periodeId: activePeriode.id,
+                action: "DELETE",
+                module: "ANGGOTA",
+                description: `Menghapus akun ${user.name} secara permanen`,
+                ipAddress, userAgent, device, location
+              }
+            });
+          }
+        }).catch(console.error);
+      }
 
       return reply.send({
         success: true,

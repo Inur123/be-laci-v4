@@ -67,7 +67,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
       });
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
           periodeId: request.user!.periodeAktifId || "",
@@ -76,7 +76,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
           description: `Menambahkan Ranting baru: ${nama}`,
           ipAddress, userAgent, device, location,
         },
-      });
+      }).catch(console.error);
 
       return reply.status(201).send({ success: true, message: "Ranting berhasil ditambahkan", data: ranting });
     }
@@ -110,7 +110,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
       });
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
           periodeId: request.user!.periodeAktifId || "",
@@ -119,7 +119,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
           description: `Mengubah nama Ranting menjadi: ${nama}`,
           ipAddress, userAgent, device, location,
         },
-      });
+      }).catch(console.error);
 
       return reply.send({ success: true, message: "Ranting berhasil diperbarui", data: updated });
     }
@@ -146,7 +146,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
       await fastify.prisma.ranting.delete({ where: { id } });
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
           periodeId: request.user!.periodeAktifId || "",
@@ -155,7 +155,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
           description: `Menghapus Ranting: ${ranting.nama}`,
           ipAddress, userAgent, device, location,
         },
-      });
+      }).catch(console.error);
 
       return reply.send({ success: true, message: "Ranting berhasil dihapus" });
     }
@@ -214,7 +214,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
       });
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
           periodeId: request.user!.periodeAktifId || "",
@@ -223,7 +223,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
           description: `Menambahkan PK baru: ${nama}`,
           ipAddress, userAgent, device, location,
         },
-      });
+      }).catch(console.error);
 
       return reply.status(201).send({ success: true, message: "PK berhasil ditambahkan", data: pk });
     }
@@ -257,7 +257,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
       });
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
           periodeId: request.user!.periodeAktifId || "",
@@ -266,7 +266,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
           description: `Mengubah nama PK menjadi: ${nama}`,
           ipAddress, userAgent, device, location,
         },
-      });
+      }).catch(console.error);
 
       return reply.send({ success: true, message: "PK berhasil diperbarui", data: updated });
     }
@@ -293,7 +293,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
       await fastify.prisma.pK.delete({ where: { id } });
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
           periodeId: request.user!.periodeAktifId || "",
@@ -302,7 +302,7 @@ export default async function wilayahRoutes(fastify: FastifyInstance) {
           description: `Menghapus PK: ${pk.nama}`,
           ipAddress, userAgent, device, location,
         },
-      });
+      }).catch(console.error);
 
       return reply.send({ success: true, message: "PK berhasil dihapus" });
     }

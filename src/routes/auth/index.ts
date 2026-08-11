@@ -25,23 +25,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
 
     let loggingOutUserId: string | null = null;
-    let loggingOutPeriodeId: string | null = null;
     if (url.pathname === "/api/auth/sign-out") {
-      const authHeader = request.headers.authorization;
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        const token = authHeader.split(" ")[1];
-        const session = await fastify.prisma.session.findUnique({
-          where: { token },
-        });
-        if (session) {
-          loggingOutUserId = session.userId;
-          const activePeriode = await fastify.prisma.periode.findFirst({
-            where: { userId: session.userId, isActive: true },
-          });
-          if (activePeriode) {
-            loggingOutPeriodeId = activePeriode.id;
-          }
+      try {
+        const sessionData = await fastify.auth.api.getSession({ headers: webRequest.headers });
+        if (sessionData && sessionData.session) {
+          loggingOutUserId = sessionData.session.userId;
         }
+      } catch (e) {
+        console.error("Error getting session for logout:", e);
       }
     }
 
@@ -71,45 +62,54 @@ export default async function authRoutes(fastify: FastifyInstance) {
           const json = JSON.parse(responseBody);
           if (json.user && json.user.id) {
             const userId = json.user.id;
-            const activePeriode = await fastify.prisma.periode.findFirst({
-              where: { userId, isActive: true },
-            });
             
-            if (activePeriode) {
-              await fastify.prisma.logActivity.create({
-                data: {
-                  userId,
-                  periodeId: activePeriode.id,
-                  action: "LOGIN",
-                  module: "AUTH",
-                  description: "Pengurus berhasil masuk (login) ke dalam sistem",
-                  ipAddress,
-                  userAgent,
-                  device,
-                  location,
-                },
-              });
-            }
+            // Fire and forget
+            fastify.prisma.periode.findFirst({
+              where: { userId, isActive: true },
+            }).then((activePeriode) => {
+              if (activePeriode) {
+                return fastify.prisma.logActivity.create({
+                  data: {
+                    userId,
+                    periodeId: activePeriode.id,
+                    action: "LOGIN",
+                    module: "AUTH",
+                    description: "Pengurus berhasil masuk (login) ke dalam sistem",
+                    ipAddress,
+                    userAgent,
+                    device,
+                    location,
+                  },
+                });
+              }
+            }).catch(e => console.error("Failed to log auth activity", e));
           }
         } else if (path === "/api/auth/sign-out") {
-          if (loggingOutUserId && loggingOutPeriodeId) {
-            await fastify.prisma.logActivity.create({
-              data: {
-                userId: loggingOutUserId,
-                periodeId: loggingOutPeriodeId,
-                action: "LOGOUT",
-                module: "AUTH",
-                description: "Pengurus berhasil keluar (logout) dari sistem",
-                ipAddress,
-                userAgent,
-                device,
-                location,
-              },
-            });
+          if (loggingOutUserId) {
+            // Fire and forget
+            fastify.prisma.periode.findFirst({
+              where: { userId: loggingOutUserId, isActive: true },
+            }).then((activePeriode) => {
+              if (activePeriode) {
+                return fastify.prisma.logActivity.create({
+                  data: {
+                    userId: loggingOutUserId,
+                    periodeId: activePeriode.id,
+                    action: "LOGOUT",
+                    module: "AUTH",
+                    description: "Pengurus berhasil keluar (logout) dari sistem",
+                    ipAddress,
+                    userAgent,
+                    device,
+                    location,
+                  },
+                });
+              }
+            }).catch(e => console.error("Failed to log auth activity", e));
           }
         }
       } catch (e) {
-        console.error("Failed to log auth activity", e);
+        console.error("Failed to parse auth activity", e);
       }
     }
 

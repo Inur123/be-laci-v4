@@ -17,18 +17,33 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         const userRole = user.role;
         const userId = user.id;
 
-        // Fetch active period name based on isActive flag in Periode table
+        const query = request.query as { periodeId?: string };
+        const reqPeriodeId = query.periodeId;
+
+        // Fetch active period name based on reqPeriodeId or isActive flag
         let periodeAktifName = "-";
-        const activePeriode = await fastify.prisma.periode.findFirst({
-          where: { 
-            userId: userId,
-            isActive: true 
-          },
-          select: { nama: true },
-        });
+        let periodeId: string | null = null;
+        let isPeriodeAktif = false;
+        let activePeriode = null;
+
+        if (reqPeriodeId) {
+          activePeriode = await fastify.prisma.periode.findFirst({
+            where: { userId, id: reqPeriodeId },
+            select: { id: true, nama: true, isActive: true },
+          });
+        }
+
+        if (!activePeriode) {
+          activePeriode = await fastify.prisma.periode.findFirst({
+            where: { userId, isActive: true },
+            select: { id: true, nama: true, isActive: true },
+          });
+        }
         
         if (activePeriode) {
           periodeAktifName = activePeriode.nama;
+          periodeId = activePeriode.id;
+          isPeriodeAktif = activePeriode.isActive;
         }
 
         // 1. Manajamen User / Data Anggota (Aktif & Verified)
@@ -48,13 +63,16 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
 
         // 3. Prepare data specific to the role
         if (userRole === Role.SEKRETARIS_CABANG) {
-          // CABANG sees everything
-          const totalSurat = await fastify.prisma.arsipSurat.count();
-          const totalSP = await fastify.prisma.berkasSP.count();
-          const totalPimpinan = await fastify.prisma.berkasPimpinan.count();
-          const totalPengajuan = await fastify.prisma.pengajuanBerkas.count();
-          const totalKegiatan = await fastify.prisma.agendaKegiatan.count();
-          const totalPresensi = await fastify.prisma.presensi.count();
+          // CABANG sees everything scoped to their current period
+          const filterCabang = periodeId ? { periodeId } : {};
+          const filterPengajuan = periodeId ? { periodeId } : {}; // uses periodeId for cabang
+          
+          const totalSurat = await fastify.prisma.arsipSurat.count({ where: filterCabang });
+          const totalSP = await fastify.prisma.berkasSP.count({ where: filterCabang });
+          const totalPimpinan = await fastify.prisma.berkasPimpinan.count({ where: filterCabang });
+          const totalPengajuan = await fastify.prisma.pengajuanBerkas.count({ where: filterPengajuan });
+          const totalKegiatan = await fastify.prisma.agendaKegiatan.count({ where: filterCabang });
+          const totalPresensi = await fastify.prisma.presensi.count({ where: filterCabang });
 
           // Top 5 PACs
           const topPacUsers = await fastify.prisma.user.findMany({
@@ -93,6 +111,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
             data: {
               role: userRole,
               periodeAktif: periodeAktifName,
+              isPeriodeAktif: isPeriodeAktif,
               stats: {
                 anggota: totalAnggotaAktif,
                 surat: totalSurat,
@@ -118,11 +137,14 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
         } else {
-          // PAC sees only their own data
-          const totalSurat = await fastify.prisma.arsipSurat.count({ where: { userId } });
-          const totalPimpinan = await fastify.prisma.berkasPimpinan.count({ where: { userId } });
-          const totalPengajuan = await fastify.prisma.pengajuanBerkas.count({ where: { userId } });
-          const totalPresensi = await fastify.prisma.presensi.count({ where: { userId } });
+          // PAC sees only their own data scoped to their period
+          const filterPac = periodeId ? { userId, periodeId } : { userId };
+          const filterPacPengajuan = periodeId ? { userId, periodeIdPac: periodeId } : { userId };
+
+          const totalSurat = await fastify.prisma.arsipSurat.count({ where: filterPac });
+          const totalPimpinan = await fastify.prisma.berkasPimpinan.count({ where: filterPac });
+          const totalPengajuan = await fastify.prisma.pengajuanBerkas.count({ where: filterPacPengajuan });
+          const totalPresensi = await fastify.prisma.presensi.count({ where: filterPac });
           const userPeriode = await fastify.prisma.periode.count({ where: { userId } });
 
           return reply.send({
@@ -130,6 +152,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
             data: {
               role: userRole,
               periodeAktif: periodeAktifName,
+              isPeriodeAktif: isPeriodeAktif,
               stats: {
                 anggota: 0, // PAC specific members if any
                 surat: totalSurat,

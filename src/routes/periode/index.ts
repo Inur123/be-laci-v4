@@ -72,15 +72,16 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
       const userId = request.user!.id;
       const { nama } = request.body as { nama: string };
 
-      // Cek apakah nama sudah ada untuk user ini
-      const existing = await fastify.prisma.periode.findUnique({
-        where: { nama_userId: { nama, userId } },
-      });
+      // Ambil semua periode user untuk cek duplikasi nama yang mirip (misal: "2025-2027" vs "2025 - 2027")
+      const allPeriodes = await fastify.prisma.periode.findMany({ where: { userId } });
+      const normalize = (str: string) => str.replace(/\s+/g, '').toLowerCase();
+      
+      const isDuplicate = allPeriodes.some(p => normalize(p.nama) === normalize(nama));
 
-      if (existing) {
+      if (isDuplicate) {
         return reply.status(400).send({
           success: false,
-          message: "Periode dengan nama tersebut sudah ada",
+          message: "Periode dengan nama yang mirip/sama sudah ada",
         });
       }
 
@@ -96,7 +97,7 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
       });
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
           periodeId: periode.id,
@@ -108,7 +109,7 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
           device,
           location,
         },
-      });
+      }).catch(console.error);
 
       return reply.status(201).send({
         success: true,
@@ -149,15 +150,16 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Cek duplikasi nama
-      const existing = await fastify.prisma.periode.findFirst({
-        where: { nama, userId, id: { not: id } },
-      });
+      // Cek duplikasi nama yang mirip
+      const allPeriodes = await fastify.prisma.periode.findMany({ where: { userId } });
+      const normalize = (str: string) => str.replace(/\s+/g, '').toLowerCase();
+      
+      const isDuplicate = allPeriodes.some(p => normalize(p.nama) === normalize(nama) && p.id !== id);
 
-      if (existing) {
+      if (isDuplicate) {
         return reply.status(400).send({
           success: false,
-          message: "Periode dengan nama tersebut sudah ada",
+          message: "Periode dengan nama yang mirip/sama sudah ada",
         });
       }
 
@@ -167,19 +169,19 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
       });
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
-          periodeId: updated.id,
+          periodeId: id,
           action: "UPDATE",
           module: "PERIODE",
-          description: `Mengubah nama periode menjadi: ${updated.nama}`,
+          description: `Mengubah nama periode menjadi: ${nama}`,
           ipAddress,
           userAgent,
           device,
           location,
         },
-      });
+      }).catch(console.error);
 
       return reply.send({
         success: true,
@@ -229,7 +231,7 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
       ]);
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
-      await fastify.prisma.logActivity.create({
+      fastify.prisma.logActivity.create({
         data: {
           userId,
           periodeId: id,
@@ -241,7 +243,7 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
           device,
           location,
         },
-      });
+      }).catch(console.error);
 
       return reply.send({
         success: true,
