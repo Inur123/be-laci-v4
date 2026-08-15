@@ -1,123 +1,77 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
-import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
 import dotenv from "dotenv";
-import path from "path";
+import path from "node:path";
+import pg from "pg";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL! });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const databaseUrl = process.env.DATABASE_URL?.trim();
+if (!databaseUrl) throw new Error("DATABASE_URL wajib diisi.");
 
-const auth = betterAuth({
-  secret: process.env.BETTER_AUTH_SECRET!,
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3001",
-  database: prismaAdapter(prisma, {
-    provider: "postgresql",
-  }),
-  emailAndPassword: {
-    enabled: true,
-  },
-});
+const pool = new pg.Pool({ connectionString: databaseUrl });
+const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+const providerId = "ipnu-sso";
+
+function listFromEnv(name: string): string[] {
+  return (process.env[name] ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+async function promoteCabangBySubject(subject: string) {
+  const account = await prisma.account.findUnique({
+    where: {
+      providerId_accountId: { providerId, accountId: subject },
+    },
+  });
+  if (!account) throw new Error(`SSO subject tidak ditemukan: ${subject}`);
+  await prisma.user.update({
+    where: { id: account.userId },
+    data: { role: "SEKRETARIS_CABANG" },
+  });
+}
+
+async function promoteCabangByEmail(email: string) {
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+    include: { accounts: { where: { providerId } } },
+  });
+  if (!user?.accounts.length) {
+    throw new Error(`Akun SSO dengan email ini tidak ditemukan: ${email}`);
+  }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { role: "SEKRETARIS_CABANG" },
+  });
+}
 
 async function main() {
-  const email = "pelajarnumagetan@gmail.com";
-  const password = "password";
-  const userId = "ipnuippnu-admin-cabang";
-
-  console.log("🚀 Memulai proses seeding aman di DB Lokal...");
-
-  // 1. Cek apakah Admin sudah ada
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-
-  if (!existingUser) {
-    console.log("   ➤ Admin belum ada, mendaftarkan via Better Auth API...");
-    const signUpResponse = await (auth.api as any).signUpEmail({
-      body: { email, password, name: "Sekretaris Cabang" },
-      headers: new Headers(),
-    });
-
-    if (signUpResponse?.user) {
-      const newUserId = signUpResponse.user.id;
-      await prisma.$transaction([
-        prisma.user.update({
-          where: { id: newUserId },
-          data: { id: userId, role: "SEKRETARIS_CABANG", isActive: true, emailVerified: true },
-        }),
-        prisma.account.updateMany({
-          where: { userId: newUserId },
-          data: { userId: userId },
-        }),
-      ]);
-      console.log("   ✓ Admin Cabang (Sekretaris Cabang) berhasil dibuat.");
-    }
-  } else {
-    console.log("   ✓ Admin sudah ada, melewati pembuatan user.");
+  for (const subject of listFromEnv("SSO_CABANG_SUBJECTS")) {
+    await promoteCabangBySubject(subject);
+  }
+  for (const email of listFromEnv("SSO_CABANG_EMAILS")) {
+    await promoteCabangByEmail(email);
   }
 
-  // 2. Seed PAC
-  const pacEmail = "pac@gmail.com";
-  const pacId = "ipnuippnu-admin-pac";
-
-  const existingPac = await prisma.user.findUnique({ where: { email: pacEmail } });
-  
-  if (!existingPac) {
-    console.log("   ➤ PAC belum ada, mendaftarkan via Better Auth API...");
-    const signUpResponse = await (auth.api as any).signUpEmail({
-      body: { email: pacEmail, password, name: "Sekretaris PAC" },
-      headers: new Headers(),
-    });
-
-    if (signUpResponse?.user) {
-      const newUserId = signUpResponse.user.id;
-      await prisma.$transaction([
-        prisma.user.update({
-          where: { id: newUserId },
-          data: { id: pacId, role: "SEKRETARIS_PAC", isActive: true, emailVerified: true },
-        }),
-        prisma.account.updateMany({
-          where: { userId: newUserId },
-          data: { userId: pacId },
-        }),
-      ]);
-      console.log("   ✓ Admin PAC (Sekretaris PAC) berhasil dibuat.");
-    }
-  } else {
-    console.log("   ✓ Admin PAC sudah ada, melewati pembuatan user.");
-  }
-
-  // 3. Seed Allowed Origins
-  const domains = [
-    "localhost",
-    "laci.pelajarnumagetan.or.id",
-    "pelajarnumagetan.or.id",
-    "data.laci.pelajarnumagetan.or.id",
-  ];
-
-  console.log("   ➤ Sinkronisasi daftar domain yang diizinkan...");
-  for (const domain of domains) {
+  for (const domain of listFromEnv("ALLOWED_ORIGINS")) {
     await prisma.allowedOrigin.upsert({
       where: { domain },
       update: {},
       create: { domain },
     });
   }
-  console.log("   ✓ Domain berhasil disinkronkan.");
 
-  console.log("✅ Proses Seed Database Selesai!");
+  console.log("Seed role dan allowed origin selesai.");
 }
 
 main()
-  .then(async () => {
+  .finally(async () => {
     await prisma.$disconnect();
     await pool.end();
   })
-  .catch(async (e) => {
-    console.error("❌ Seed Gagal:", e);
-    await prisma.$disconnect();
-    await pool.end();
-    process.exit(1);
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
   });

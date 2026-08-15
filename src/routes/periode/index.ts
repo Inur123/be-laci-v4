@@ -87,14 +87,22 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
 
       // Cek apakah ini periode pertama user
       const count = await fastify.prisma.periode.count({ where: { userId } });
+      const isActive = count === 0;
 
       const periode = await fastify.prisma.periode.create({
         data: {
           nama,
           userId,
-          isActive: count === 0, // Aktifkan otomatis jika ini periode pertama
+          isActive, // Aktifkan otomatis jika ini periode pertama
         },
       });
+
+      if (isActive) {
+        await fastify.prisma.user.update({
+          where: { id: userId },
+          data: { periodeAktifId: periode.id },
+        });
+      }
 
       const { ipAddress, userAgent, device, location } = getDeviceInfo(request);
       fastify.prisma.logActivity.create({
@@ -218,7 +226,7 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Nonaktifkan semua periode user, lalu aktifkan yang dipilih
+      // Nonaktifkan semua periode user, lalu aktifkan yang dipilih, dan update user.periodeAktifId
       await fastify.prisma.$transaction([
         fastify.prisma.periode.updateMany({
           where: { userId },
@@ -227,6 +235,10 @@ export default async function periodeRoutes(fastify: FastifyInstance) {
         fastify.prisma.periode.update({
           where: { id },
           data: { isActive: true },
+        }),
+        fastify.prisma.user.update({
+          where: { id: userId },
+          data: { periodeAktifId: id },
         }),
       ]);
 

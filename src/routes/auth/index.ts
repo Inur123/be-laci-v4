@@ -1,118 +1,95 @@
 import type { FastifyInstance } from "fastify";
+import {
+  createAuthorizationRequest,
+  exchangeAndVerifyAuthorizationCode,
+} from "../../services/oidc.service";
+import {
+  createLocalSession,
+  getLocalSession,
+  revokeLocalSession,
+} from "../../services/session.service";
 
+function frontendLoginError(fastify: FastifyInstance, code: string): string {
+  const url = new URL("/login", fastify.config.FRONTEND_URL);
+  url.searchParams.set("error", code);
+  return url.toString();
+}
 export default async function authRoutes(fastify: FastifyInstance) {
-  fastify.all("/api/auth/*", { schema: { tags: ["Autentikasi & Sesi"] } }, async (request, reply) => {
-    const url = new URL(request.url, `${request.protocol}://${request.hostname}`);
+  fastify.get("/api/auth/sso/start", async (request, reply) => {
+    reply.header("cache-control", "no-store");
+    const query = request.query as { callback_url?: string };
 
-    const headers = new Headers();
-    for (const [key, value] of Object.entries(request.headers)) {
-      if (value) {
-        if (Array.isArray(value)) {
-          value.forEach((v) => headers.append(key, v));
-        } else {
-          headers.set(key, value);
-        }
-      }
+    try {
+      const target = await createAuthorizationRequest(
+        fastify,
+        query.callback_url
+      );
+      return reply.redirect(target);
+    } catch (error) {
+      request.log.error(error, "Gagal membuat transaksi login OIDC");
+      return reply.redirect(frontendLoginError(fastify, "sso_unavailable"));
     }
+  });
 
-    const webRequest = new Request(url.toString(), {
-      method: request.method,
-      headers,
-      body:
-        request.method !== "GET" && request.method !== "HEAD"
-          ? JSON.stringify(request.body)
-          : undefined,
-    });
+  fastify.get(
+    "/api/auth/oauth2/callback/ipnu-sso",
+    async (request, reply) => {
+      reply.header("cache-control", "no-store");
+      const query = request.query as {
+        code?: string;
+        state?: string;
+        iss?: string;
+        error?: string;
+      };
 
-    let loggingOutUserId: string | null = null;
-    if (url.pathname === "/api/auth/sign-out") {
+      if (query.error || !query.code || !query.state) {
+        return reply.redirect(frontendLoginError(fastify, "sso_denied"));
+      }
+
       try {
-        const sessionData = await fastify.auth.api.getSession({ headers: webRequest.headers });
-        if (sessionData && sessionData.session) {
-          loggingOutUserId = sessionData.session.userId;
-        }
-      } catch (e) {
-        console.error("Error getting session for logout:", e);
+        const result = await exchangeAndVerifyAuthorizationCode(
+          fastify,
+          request,
+          query.code,
+          query.state,
+          query.iss
+        );
+        await createLocalSession(fastify, request, reply, result.userId);
+        return reply.redirect(result.callbackURL);
+      } catch (error) {
+        request.log.warn({ err: error }, "Callback OIDC LACI ditolak");
+        return reply.redirect(frontendLoginError(fastify, "sso_invalid"));
       }
     }
+  );
 
-    const response = await fastify.auth.handler(webRequest);
+  fastify.get("/api/auth/get-session", async (request, reply) => {
+    reply.header("cache-control", "no-store");
+    const session = await getLocalSession(fastify, request);
+    if (!session || !session.user.isActive) return reply.send(null);
 
-    response.headers.forEach((value, key) => {
-      reply.header(key, value);
+    return reply.send({
+      user: {
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        emailVerified: session.user.emailVerified,
+        image: session.user.image,
+        role: session.user.role,
+        isActive: session.user.isActive,
+        periodeAktifId: session.user.periodeAktifId,
+      },
+      session: {
+        id: session.id,
+        userId: session.userId,
+        expiresAt: session.expiresAt,
+      },
     });
+  });
 
-    reply.status(response.status);
-
-    const responseBody = await response.text();
-
-    // ============================================
-    // ACTIVITY LOGGING FOR LOGIN & LOGOUT
-    // ============================================
-    if (response.status === 200) {
-      try {
-        const path = url.pathname;
-        const customDevice = request.headers["x-client-device"] as string;
-        const userAgent = request.headers["user-agent"] as string;
-        const ipAddress = request.ip;
-        const device = customDevice || (userAgent?.includes("Mobile") || userAgent?.includes("Dart") ? "Mobile" : "Web");
-        const location = request.headers["x-user-location"] as string | undefined;
-
-        if (path === "/api/auth/sign-in/email") {
-          const json = JSON.parse(responseBody);
-          if (json.user && json.user.id) {
-            const userId = json.user.id;
-            
-            // Fire and forget
-            fastify.prisma.periode.findFirst({
-              where: { userId, isActive: true },
-            }).then((activePeriode) => {
-              if (activePeriode) {
-                return fastify.prisma.logActivity.create({
-                  data: {
-                    userId,
-                    periodeId: activePeriode.id,
-                    action: "LOGIN",
-                    module: "AUTH",
-                    description: "Pengurus berhasil masuk (login) ke dalam sistem",
-                    ipAddress,
-                    userAgent,
-                    device,
-                    location,
-                  },
-                });
-              }
-            }).catch(e => console.error("Failed to log auth activity", e));
-          }
-        } else if (path === "/api/auth/sign-out") {
-          if (loggingOutUserId) {
-            // Fire and forget
-            fastify.prisma.periode.findFirst({
-              where: { userId: loggingOutUserId, isActive: true },
-            }).then((activePeriode) => {
-              if (activePeriode) {
-                return fastify.prisma.logActivity.create({
-                  data: {
-                    userId: loggingOutUserId,
-                    periodeId: activePeriode.id,
-                    action: "LOGOUT",
-                    module: "AUTH",
-                    description: "Pengurus berhasil keluar (logout) dari sistem",
-                    ipAddress,
-                    userAgent,
-                    device,
-                    location,
-                  },
-                });
-              }
-            }).catch(e => console.error("Failed to log auth activity", e));
-          }
-        }
-      } catch (e) {
-        console.error("Failed to parse auth activity", e);
-      }
-    }
-
-    return reply.send(responseBody);
+  fastify.post("/api/auth/sign-out", async (request, reply) => {
+    reply.header("cache-control", "no-store");
+    await revokeLocalSession(fastify, request, reply);
+    return reply.send({ success: true });
   });
 }

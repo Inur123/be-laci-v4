@@ -18,12 +18,23 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         const userId = user.id;
 
         const query = request.query as { periodeId?: string };
-        const reqPeriodeId = query.periodeId;
+        const reqPeriodeId = request.cookies?.viewingPeriodeId || query.periodeId;
 
-        // Fetch active period name based on reqPeriodeId or isActive flag
-        let periodeAktifName = "-";
+        let viewingPeriodeName = "-";
+        let realActivePeriodeName = "-";
         let periodeId: string | null = null;
         let isPeriodeAktif = false;
+
+        // Dapatkan periode yang benar-benar aktif
+        const realActivePeriode = await fastify.prisma.periode.findFirst({
+          where: { userId, isActive: true },
+          select: { id: true, nama: true },
+        });
+
+        if (realActivePeriode) {
+          realActivePeriodeName = realActivePeriode.nama;
+        }
+
         let activePeriode = null;
 
         if (reqPeriodeId) {
@@ -33,15 +44,15 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
-        if (!activePeriode) {
+        if (!activePeriode && realActivePeriode) {
           activePeriode = await fastify.prisma.periode.findFirst({
-            where: { userId, isActive: true },
+            where: { id: realActivePeriode.id },
             select: { id: true, nama: true, isActive: true },
           });
         }
         
         if (activePeriode) {
-          periodeAktifName = activePeriode.nama;
+          viewingPeriodeName = activePeriode.nama;
           periodeId = activePeriode.id;
           isPeriodeAktif = activePeriode.isActive;
         }
@@ -106,11 +117,34 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
 
+          // Total Wilayah
+          const totalRanting = await fastify.prisma.ranting.count();
+          const totalPK = await fastify.prisma.pK.count();
+
+          // Rincian per PAC untuk Wilayah
+          const pacUsersWithWilayah = await fastify.prisma.user.findMany({
+            where: { role: Role.SEKRETARIS_PAC },
+            select: {
+              name: true,
+              _count: {
+                select: { ranting: true, pk: true }
+              }
+            },
+            orderBy: { name: 'asc' }
+          });
+
+          const tabelWilayahPac = pacUsersWithWilayah.map((pUser: any) => ({
+            name: pUser.name,
+            ranting: pUser._count?.ranting || 0,
+            pk: pUser._count?.pk || 0,
+          }));
+
           return reply.send({
             success: true,
             data: {
               role: userRole,
-              periodeAktif: periodeAktifName,
+              periodeAktif: realActivePeriodeName,
+              periodeDitampilkan: viewingPeriodeName,
               isPeriodeAktif: isPeriodeAktif,
               stats: {
                 anggota: totalAnggotaAktif,
@@ -123,8 +157,11 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
                 presensi: totalPresensi,
                 manajemenUser: totalAnggotaAktif,
                 pacAktif: totalPacAktif,
+                ranting: totalRanting,
+                pk: totalPK,
               },
               topPacs,
+              tabelWilayahPac,
               // Dummy trend data for UI demonstration
               trends: [
                 { name: 'Mar', value: 0 },
@@ -151,7 +188,8 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
             success: true,
             data: {
               role: userRole,
-              periodeAktif: periodeAktifName,
+              periodeAktif: realActivePeriodeName,
+              periodeDitampilkan: viewingPeriodeName,
               isPeriodeAktif: isPeriodeAktif,
               stats: {
                 anggota: 0, // PAC specific members if any

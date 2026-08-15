@@ -1,48 +1,24 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import type { User, Session } from "@prisma/client";
+import { getLocalSession } from "../services/session.service";
 
 export async function requireAuth(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
   try {
-    // BetterAuth Official API - handles both Session Cookie & Bearer Token automatically
-    const headers = new Headers();
-    for (const [key, value] of Object.entries(request.headers)) {
-      if (value) {
-        if (Array.isArray(value)) {
-          value.forEach((v) => headers.append(key, v));
-        } else {
-          headers.set(key, value);
-        }
-      }
-    }
-
-    const session = await request.server.auth.api.getSession({
-      headers,
-    });
+    const session = await getLocalSession(request.server, request);
 
     if (session?.user) {
-      const user = await request.server.prisma.user.findUnique({
-        where: { id: session.user.id },
-      });
-
-      if (!user) {
-        return reply.status(401).send({
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "User tidak ditemukan" },
-        });
-      }
-
-      if (!user.isActive) {
+      if (!session.user.isActive) {
         return reply.status(403).send({
           success: false,
-          error: { code: "USER_INACTIVE", message: "Akun Anda belum aktif/dinonaktifkan" },
+          error: { code: "USER_INACTIVE", message: "Akses LACI telah dicabut" },
         });
       }
 
-      request.user = user;
-      request.session = session.session as unknown as Session;
+      request.user = session.user;
+      request.session = session as Session;
       return;
     }
 

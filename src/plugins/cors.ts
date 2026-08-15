@@ -21,7 +21,6 @@ const corsPlugin = fp(
         "Authorization",
         "Cookie",
         "X-Requested-With",
-        "x-app-key",
         "x-user-location",
         "x-client-device",
       ],
