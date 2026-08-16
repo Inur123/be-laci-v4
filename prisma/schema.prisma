@@ -41,6 +41,9 @@ model User {
   ranting  Ranting[]
   pk       PK[]
 
+  // Eksternal Anggota
+  anggota  Anggota[]
+
   @@index([role, isActive, emailVerified])
   @@index([createdAt])
 }
@@ -63,6 +66,7 @@ model Periode {
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   rantingData       RantingDataPeriode[]
   pkData            PKDataPeriode[]
+  anggota           Anggota[]
 
   @@unique([nama, userId])
   @@index([userId])
@@ -389,8 +393,6 @@ model LogEmail {
 }
 
 enum EmailType {
-  VERIFICATION
-  VERIFIED_SUCCESS
   PENGAJUAN_USER
   PENGAJUAN_ADMIN
   PENGAJUAN_STATUS
@@ -445,7 +447,16 @@ model Account {
   @@index([userId])
 }
 
-model Verification {
+model ApiKey {
+  id        String   @id @default(cuid())
+  name      String   // Nama layanan pengguna API (contoh: "Sistem Anggota")
+  key       String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SsoState {
   id         String   @id @default(cuid())
   identifier String
   value      String
@@ -455,4 +466,28 @@ model Verification {
 
   @@unique([identifier, value])
   @@index([identifier])
+}
+
+model Anggota {
+  id          String           @id @default(cuid())
+  userId      String           // Akun Pengelola di Laci
+  periodeId   String
+  namaLengkap String
+  tingkat     String           // CABANG / PAC / RANTING / PK
+  jabatan     String?
+  wilayahId   String?          // Referensi ke Ranting / PK jika perlu
+  status      StatusVerifikasi @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periode     Periode          @relation(fields: [periodeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, periodeId, status])
+}
+
+enum StatusVerifikasi {
+  PENDING
+  TERVERIFIKASI
+  DITOLAK
 }

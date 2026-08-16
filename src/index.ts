@@ -27,6 +27,8 @@ import ssoProvisioningRoutes from "./routes/sso-provisioning";
 import arsipSuratRoutes from "./routes/arsip-surat";
 import berkasSPRoutes from "./routes/berkas-sp";
 import berkasPimpinanRoutes from "./routes/berkas-pimpinan";
+import publicRoutes from "./routes/public";
+import anggotaRoutes from "./routes/anggota";
 
 async function buildServer() {
   const fastify = Fastify({
@@ -80,6 +82,8 @@ async function buildServer() {
   await fastify.register(arsipSuratRoutes, { prefix: "/api/arsip-surat" });
   await fastify.register(berkasSPRoutes, { prefix: "/api/berkas-sp" });
   await fastify.register(berkasPimpinanRoutes, { prefix: "/api/berkas-pimpinan" });
+  await fastify.register(publicRoutes);
+  await fastify.register(anggotaRoutes, { prefix: "/api/anggota" });
 
   // 5. Health Check Endpoint
   fastify.get("/health", { schema: { tags: ["Sistem"] } }, async () => {

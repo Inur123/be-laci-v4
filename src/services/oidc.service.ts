@@ -209,13 +209,13 @@ export async function createAuthorizationRequest(
   };
 
   await fastify.prisma.$transaction(async (tx) => {
-    await tx.verification.deleteMany({
+    await tx.ssoState.deleteMany({
       where: {
         identifier: { startsWith: "oidc:state:" },
         expiresAt: { lte: new Date() },
       },
     });
-    await tx.verification.create({
+    await tx.ssoState.create({
       data: {
         identifier: `oidc:state:${sha256(state)}`,
         value: JSON.stringify(transaction),
@@ -248,16 +248,16 @@ async function consumeTransaction(
     const identifier = `oidc:state:${sha256(state)}`;
     const rows = await tx.$queryRaw<Array<{ id: string; value: string; expiresAt: Date }>>`
       SELECT id, value, "expiresAt"
-      FROM "Verification"
+      FROM "SsoState"
       WHERE identifier = ${identifier}
       FOR UPDATE
     `;
     const row = rows[0];
     if (!row || row.expiresAt <= new Date()) {
-      if (row) await tx.verification.delete({ where: { id: row.id } });
+      if (row) await tx.ssoState.delete({ where: { id: row.id } });
       throw new Error("invalid_or_expired_state");
     }
-    await tx.verification.delete({ where: { id: row.id } });
+    await tx.ssoState.delete({ where: { id: row.id } });
     return JSON.parse(row.value) as OidcTransaction;
   });
 }

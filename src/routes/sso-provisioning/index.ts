@@ -252,7 +252,7 @@ export default async function ssoProvisioningRoutes(
         // yang lebih baru ketika beberapa worker menerima event bersamaan.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${watermarkIdentifier}))`;
 
-        const duplicate = await tx.verification.findFirst({
+        const duplicate = await tx.ssoState.findFirst({
           where: { identifier: eventIdentifier, value: "processed" },
         });
         if (duplicate) {
@@ -260,7 +260,7 @@ export default async function ssoProvisioningRoutes(
           return;
         }
 
-        const watermark = await tx.verification.findFirst({
+        const watermark = await tx.ssoState.findFirst({
           where: { identifier: watermarkIdentifier },
           orderBy: { updatedAt: "desc" },
         });
@@ -274,7 +274,7 @@ export default async function ssoProvisioningRoutes(
           }
 
           if (watermark) {
-            await tx.verification.update({
+            await tx.ssoState.update({
               where: { id: watermark.id },
               data: {
                 value: eventTime.toISOString(),
@@ -282,7 +282,7 @@ export default async function ssoProvisioningRoutes(
               },
             });
           } else {
-            await tx.verification.create({
+            await tx.ssoState.create({
               data: {
                 identifier: watermarkIdentifier,
                 value: eventTime.toISOString(),
@@ -292,7 +292,7 @@ export default async function ssoProvisioningRoutes(
           }
         }
 
-        await tx.verification.create({
+        await tx.ssoState.create({
           data: {
             identifier: eventIdentifier,
             value: "processed",

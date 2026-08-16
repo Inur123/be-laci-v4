@@ -1,0 +1,1 @@
+import { PrismaClient } from '@prisma/client'; const prisma = new PrismaClient(); async function main() { await prisma.$executeRawUnsafe(`DELETE FROM \"LogEmail\" WHERE type = 'VERIFICATION' OR type = 'VERIFIED_SUCCESS'`); console.log('Done'); } main().finally(() => prisma.$disconnect());
